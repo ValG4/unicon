@@ -354,8 +354,9 @@ class Logger(
       debug_kind_set := set("")
       current_log_level := \init_log_level | 7
       log_destinations := []
+      log_file_path := "C:/Users/valen/unicon/uni/ulsp/logs.txt"
       if \log_file_path then
-         if f := open(log_file_path, "a") then
+         if f := open(log_file_path, "a") then #w instead of a should overwrite
             put(log_destinations, f)
 
       if /no_singleton then

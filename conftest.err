@@ -1,0 +1,2 @@
+      0 [main] sh 2116 dofork: child -1 - forked process 24908 died unexpectedly, retry 0, exit code 0xC0000142, errno 11
+configure: fork: retry: Resource temporarily unavailable

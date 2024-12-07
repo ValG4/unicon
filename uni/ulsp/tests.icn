@@ -1,0 +1,423 @@
+#<p>
+#  ULSP tests 
+#  Author: Valentin Goyet
+#  Description: This file will be used to devellop a test framework for ulsp
+#  In the 1st part, it will focus on testing ulsp with right request and compare the output to the known output
+#  In the 2nd part, it will focus on sending ulsp to places it is not used to go, and check for the result we get
+#</p>
+
+
+#  procedure main()
+#     msg := "{initialize.......}"
+#     send(msg)
+#     response := receive()
+#  
+#     compare(response, expected_response)
+#
+#     ...
+#
+#  end
+
+#Run ulsp in the background, open dcp socket and 
+
+
+#do something to trim the long outputs
+
+import ulsp
+import json
+link ximage
+link strings
+
+
+procedure main()
+   local 
+   a := ulsp_testing()
+   write("hello world")
+   #Make ulsp_testing a variable (define)
+   #example "a:= ulsptesting()" and then do "a.open()"
+   #test := a.open() #value, rot)
+   #write(test)
+end
+
+
+
+class ulsp_testing( #Definition of the class holding all the test methods
+   test_socket, 
+   test_address, 
+   id,
+   testServerThread,
+   ulsp_server,
+   jrpc_server,
+   jrpc_client
+  )
+   
+   method open_test_socket(address) #Method used to open the test socket
+      Logger.info("Openning ulsp test socket in server mode at: ", address) #Logger.info is used to display an informational message to the user
+      test_socket := open(address, "na") | stop("failed to open the socket:", &errortext) 
+      #Try to open the test socket at the given address, fails after a certain amount of time
+      run(test_socket)
+   end
+   
+   method build_request(my_method, params) #Old method to build the requests(not in use anymore)
+      local responseBody, responseHeader
+      /params := "{}"
+      id := ?1000 #Passes a random number between 0 and 1000
+      my_method := "\"" || my_method || "\""
+      responseBody := "{\"jsonrpc\":\"2.0\",\"id\":"||id||",\"method\":"||my_method||", \"params\":"||params||"}"
+      responseHeader := "Content-Length: " || *responseBody || "\r\n\r\n"
+      return responseHeader || responseBody
+   end   
+
+   method test_initialize() #Method used to send the initialize statement to the server
+
+      jrpc_client.send_msg(JRPC_Message().make_request(id, "initialize"))#Building the request using JRPC
+      id += 1
+
+      if (response := jrpc_client.get_msg(5000)) then{ #Condition to wait for 5 seconds for a response
+         kind := response.get_kind() #Getting the type of the answer
+         if (kind == "response") then{
+            content := response.get_content()#dump the string of the message
+            compareInitialize(content) #If the type is a response, then run the test on the string we got back
+         }else{
+            Logger.error("response type expected but got: ", kind) #Print an error to the user
+         }
+         
+      }else{
+         Logger.info("Initialize Failed") #No response was sent by the server
+      }
+
+   end
+
+   method compareInitialize(result)   #Method to compare the string response we get from the server with the one we expect
+      result ? {
+         tab(upto("\r\n\r\n") + 4) #Used to get rid of the non wanted begining of the response if any
+         msg := tab(0) #reads the entire string and set its value to msg
+         if msg == "{\"id\":"|| id||",\"result\":{\"capabilities\":{\"hoverProvider\":true,\"definitionProvider\":true,\"completionProvider\":{\"triggerCharacters\":[\".\",\":\"]},\"signatureHelpProvider\":{\"triggerCharacters\":[\"(\"],\"contextSupport\":true},\"textDocumentSync\":1}}}" then {
+            write("\n", "Initialize -- PASS", "\n")
+         }else{
+            write("Initialize -- FAIL")
+         }
+      
+      }
+
+   end
+
+   method test_hover()
+      hover_args := table() #creating a table
+      hover_args["textDocument"] := table() #Addind a table to the textDocument key
+      hover_args["position"] := table() #Adding a table to the position key
+
+      hover_args["textDocument"]["uri"] := "file:///C:/Users/valen/unicon/uni/ulsp/server.icn"
+      hover_args["position"]["line"] := 254
+      hover_args["position"]["character"] := 30
+      Logger.info("hover args: ",tojson(hover_args)) #Message to the user to check all the arguments initialized above
+
+      jrpc_client.send_msg(JRPC_Message().make_request(id, "textDocument/hover", hover_args))
+    
+    
+      id += 1 #Incrementing the common id for all the tests
+
+      if (response := jrpc_client.get_msg(5000)) then{
+      
+         kind := response.get_kind()
+         if (kind == "response") then{
+            content := response.get_content()#dump the string of the message
+            compareHover(content)
+         }else{
+            Logger.error("response type expected but got: ", kind)
+         }
+         
+      }else{
+         Logger.error("Hover Test Failed")
+      }
+   end
+
+   method compareHover(content)
+      content ? {
+         tab(upto("\r\n\r\n") + 4)
+         msg := tab(0)
+         if msg == "msg sent is: {\"jsonrpc\":\"2.0\",\"id\":"|| id ||",\"method\":\"textDocument/hover\",\"params\":{\"textDocument\":{\"uri\":\"file:///c%3A/Users/valen/unicon/uni/ulsp/tests.icn\"},\"position\":{\"line\":254,\"character\":30}}}" then {
+            write("\n", "Hover -- PASS", "\n")
+         }else{
+            write("Hover -- FAIL")
+         }
+      
+      }
+
+   end
+
+   method test_completion() #Same way of working as test_hover
+      
+      params := table()
+      params["textDocument"] := table()
+      params["position"] := table()
+
+      params["textDocument"]["uri"] := "file:///C:/Users/valen/unicon/uni/ulsp/server.icn"
+      params["position"]["line"] := 254
+      params["position"]["character"] := 30
+
+      jrpc_client.send_msg(JRPC_Message().make_request(id, "textDocument/completion", params))#work on abstracting that
+      id += 1
+
+      if (response := jrpc_client.get_msg(5000)) then{
+      
+         kind := response.get_kind()
+         if (kind == "response") then{
+            content := response.get_content()#dump the string of the message
+            compareCompletion(content)
+         }else{
+            Logger.error("response type expected but got: ", kind) 
+         }
+         
+      }else{
+         Logger.info("Completion Failed")
+      }
+
+
+   end
+
+
+   method compareCompletion(result)
+      result ? {
+         tab(upto("\r\n\r\n") + 4)
+         msg := tab(0)
+         if msg == "FIND THE COMPLETION MESSAGE" then {
+            write("\n", "Completion -- PASS", "\n")
+         }else{
+            write("\n", "Completion -- FAIL")
+         }
+      
+      }
+
+   end
+
+   method test_signature() #Same way of working as test_hover
+      params := table()
+      params["textDocument"] := table()
+      params["position"] := table()
+
+      params["textDocument"]["uri"] := "file:///C:/Users/valen/unicon/uni/ulsp/server.icn"
+      params["position"]["line"] := 254
+      params["position"]["character"] := 30
+
+      jrpc_client.send_msg(JRPC_Message().make_request(id, "textDocument/signatureHelp", params))#work on abstracting that
+      id += 1
+
+      if (response := jrpc_client.get_msg(5000)) then{
+    
+         kind := response.get_kind()
+         if (kind == "response") then{
+            content := response.get_content()#dump the string of the message
+            compareSignature(content)
+         }else{
+            Logger.error("response type expected but got: ", kind) 
+         }
+         
+      }else{
+         Logger.info("Signature Failed")
+      }
+
+
+   end
+
+   method compareSignature(result)
+      result ? {
+         tab(upto("\r\n\r\n") + 4)
+         msg := tab(0)
+         if msg == "FIND THE COMPLETION MESSAGE" then {
+            write("\n", "Signature -- PASS", "\n")
+         }else{
+            write("\n", "Signature -- FAIL")
+         }
+      
+      }
+   end
+
+   method test_definition() #Same way of working as test_hover
+      params := table()
+      params["textDocument"] := table()
+      params["position"] := table()
+
+      params["textDocument"]["uri"] := "file:///C:/Users/valen/unicon/uni/ulsp/server.icn"
+      params["position"]["line"] := 254
+      params["position"]["character"] := 30
+      jrpc_client.send_msg(JRPC_Message().make_request(id, "textDocument/definition", params))#work on abstracting that
+      id += 1
+
+      if (response := jrpc_client.get_msg(5000)) then{
+    
+         kind := response.get_kind()
+         if (kind == "response") then{
+            content := response.get_content()#dump the string of the message
+            compareDefiniton(content)
+         }else{
+            Logger.error("response type expected but got: ", kind)  
+         }
+         
+      }else{
+         Logger.info("Definition Failed")
+      }
+   end
+
+   method compareDefinition(result)
+      result ? {
+         tab(upto("\r\n\r\n") + 4)
+         msg := tab(0)
+         if msg == "FIND THE COMPLETION MESSAGE" then {
+            write("\n", "Definition -- PASS", "\n")
+         }else{
+            write("\n", "Definition -- FAIL")
+         }
+      
+      }
+
+
+   end
+
+
+   method test_open() #Same way of working as test_hover but doesn't need a position in the file
+      params := table()
+      params["textDocument"] := table()
+
+      params["textDocument"]["uri"] := "file:///C:/Users/valen/unicon/uni/ulsp/server.icn" #add an hello world file to do the testing
+
+      jrpc_client.send_msg(JRPC_Message().make_request(id, "textDocument/didOpen", params))
+      id +:= 1  #Change it everywhere
+      
+      if (response := jrpc_client.get_msg(5000)) then{
+    
+         kind := response.get_kind()
+         if (kind == "response") then{
+            content := response.get_content()#dump the string of the message
+            compareOpen(content)
+         }else{
+            Logger.error("response type expected but got: ", kind)  
+         }
+         
+      }else{
+         Logger.info("Open Failed")
+      }
+
+   end
+
+
+   method test_method(methodName, params) #Framework for the abstraction of the test method call, not finished yet
+      if /params then{
+         params = []
+      }
+      jrpc_client.send_msg(JRPC_Message().make_request(id, methodName, params))#work on abstracting that
+      id += 1
+
+      if (response := jrpc_client.get_msg(5000)) then{
+    
+         kind := response.get_kind()
+         if (kind == "response") then{
+            content := response.get_content()#dump the string of the message
+            testing := "compare"||methodName
+            testing(content)
+         }else{
+            Logger.error("response type expected but got: ", kind)  
+         }
+         
+      }else{
+         Logger.info(methodName, " Failed")
+      }
+   end
+
+   method test_save() #Old request call, not in use anymore
+      s := build_request("textDocument/didSave", "{\"textDocument\":{\"uri\":\"file:///C:/Users/valen/unicon/uni/ulsp/tests.icn\"}}")
+      Logger.info("s:",s)
+      writes(test_socket, s)
+      if *select(test_socket, 5000) >0 then {
+          returnSave := ready(test_socket)
+         Logger.info("returnSave:", returnSave)
+         compareSave(returnSave)
+      }else{
+         Logger.info("No answer from the server for the test of Save")
+      }
+
+   end
+
+
+   method test_close() #old request call, not in use anymore
+      s := build_request("textDocument/didClose", "{\"textDocument\":{\"uri\":\"file:///C:/Users/valen/unicon/uni/ulsp/tests.icn\"}}")
+      Logger.info("s:",s)
+      writes(test_socket, s)
+      if *select(test_socket, 5000) >0 then {
+         returnClose := ready(test_socket)
+         Logger.info("returnClose:", returnClose)
+         compareClose(returnClose)
+      }else{
+         Logger.info("No answer from the server for the test of Close")
+      }
+   end
+
+   method run(sock) #Main method of the test program
+      local request_body, jsontable, request_method, request_params, request_id
+      
+      jrpc_client := JRPC_HTTPSocket(test_socket)  #initialize the client socket for usage with JRPC
+      Logger.info("Sendind the initialize statement to the server")
+      id := 1 #Initialize the common id
+      #Performing all the test one by one
+      test_initialize()
+      write("hello world")
+      #test_save()
+      #write("saved hello world")
+      test_open()
+      write("opened hello world")
+      #test_close()
+      #write("closed hello world")
+      test_hover()
+      #test_method("initialize")
+      write("\n", "\n", "\n")
+      test_completion()
+      write("\n", "\n", "\n")
+      test_signature()
+      write("\n", "\n", "\n")
+      test_definition()
+      write("\n", "\n", "\n")
+      test_hover()
+      write("hovered hello world")
+      exit(0) #used to exit the test program, as otherwise it is a loop and wait for new requests
+
+      #For the requests that need a file, create a new on with hello world in it for example
+   end
+
+
+   method start_ulsp(sock) #Method to start the ULSP client instance
+      Logger.info("Starting ulsp server instance")
+      ulsp_server := Server(sock, "c") #"c" is used for client
+      ulsp_server.run()#calls the run method above and stays in it until prompted to exit
+   end
+
+   initially #Does this first
+      local sock, ulsp_server
+      Logger(8) #Sets the logger to level 8, so only the info, error and notification would be printed to the user
+
+      if &features == ("MacOS" | "MS Windows NT") then { #If the server is runnning on Mac or Windows, set the server address as follow
+         test_address := "127.0.0.1:6600"
+      }
+      else {
+         test_address := ":6600"
+      }
+
+      testServerThread := thread open_test_socket(test_address) #Create a thread, and then open the test socket
+      delay(1000) #wait 1 second for the test socket to be open
+      start_ulsp(test_address) #Start USLP at the given address
+      write("Server NOT Succesfully Started!!") #Only print out if the server start failed
+   end
+
+
+
+
+#Transfered initializing code in here as I couldn't get it to work otherwise
+
+#Still a little cofused on how i'm suppose to send the requests to the server
+
+#created send_request, hover_test, save_test
+
+#At that point I'm a little lost on what exactly I'm supposed to do...
+
+#send_request had to be created as the repeat function in run() doesn't execute
+
+#started reading about how threads work in Unicon

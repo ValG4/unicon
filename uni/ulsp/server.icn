@@ -13,6 +13,12 @@ link strings
 import json
 #import UniDoc
 
+link Logger
+
+global Logger
+
+#Logger := Logger()
+
 
 class Server(
    port,                         # Port number acquired from args on start up of server
@@ -93,8 +99,6 @@ class Server(
          }
    end
 
-
-
 #################################################################################
 #                     Response / notification Section                           #
 #################################################################################
@@ -138,12 +142,25 @@ class Server(
 ########################################################
 
    method didOpen(request_params)
-      local fname, uri, f, initial_file_contents, workspace_object
+      local fname, uri, f, initial_file_contents, workspace_object, taille
+      #Logger.info("Did open request: ", tojson(request_params))
       if \(uri := request_params["textDocument"]["uri"]) then {
          # uri: file://<PATH>
          uri ? {
             ="file://" | write(&errout, "unexpected uri:", uri)
             fname := tab(0)
+            if &features == ("MS Windows NT") then {
+               fname := replace(fname, "/c%3A/", "C:\\")
+               fname := replace(fname, "\\", "/")
+               taille := *fname
+               #reverse(fname)
+               #write("resvered fname: ", fname)
+               #trim(fname, '/A3%c/')
+               #reverse(fname)
+               #fname := "C://" || fname
+               write("test path length: ", taille)
+               write("test fname: ", fname)
+            }
          }
 
          if f := open(fname) then {
@@ -156,6 +173,7 @@ class Server(
       workspace_object := openFiles[\uri]
       workspace_object.setFile()
       workspace_object.updateWorkspace()
+      #ulsp_testing.open("server", "ulsp")
 
    end
 
@@ -176,7 +194,7 @@ class Server(
    method didChange(request_params)
       local fname, uri, f, file_contents, workspace_object, initial_file_contents
       if \(uri := request_params["textDocument"]["uri"]) then {
-         # uri: file://<PATH>
+         #uri: file://<PATH>
          uri ? {
             ="file://" | write(&errout, "unexpected uri:", uri)
             fname := tab(0)
@@ -192,6 +210,7 @@ class Server(
       file_contents := request_params["contentChanges"][1]["text"]
       workspace_object := openFiles[\uri]
       workspace_object.updateUniDoc(fname, file_contents)
+      Logger._debug("Did Change Command: ", workspace_object.updateUniDoc(fname, file_contents))
       workspace_object.updateWorkspace()
    end
 
@@ -227,6 +246,8 @@ class Server(
 
    method hoverHelp(msg)
       local workspace_object, result
+      msgtest := msg.get_content()
+      Logger.info("msg sent is: ", msgtest)
       workspace_object := openFiles[\msg.get_param_uri()]
       hoverHandler.setVariables(workspace_object, msg.get_params())
       result := hoverHandler.run()

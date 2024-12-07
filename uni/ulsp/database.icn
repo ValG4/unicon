@@ -16,6 +16,8 @@ link paths
 
 global Logger
 
+#Logger := Logger()
+
 class LSPDB(
    package_db,
    built_in_functions,           # List containing all native function names
@@ -233,4 +235,9 @@ class LSPDB(
    initially
 
       unicon_dir := ulibprefix()
+      #Try to do the replace here
+      #if &features == ("MS Windows NT") then {
+      #      fname := replace(fname, "/c%3A/", "C:\\")
+      #      fname := replace(fname, "\\", "/")
+      #}
 end

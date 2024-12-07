@@ -52,12 +52,16 @@ end
 procedure main(args)
    local opts, sock, mode
 
+   #write("Args:", args)
+
    trap("SIGINT", ulsp_sig_handler)
 
    # If validate_args() fails, it will display usage() and never return.
    opts := validate_args(args)
 
-   Logger((opts["-loglevel"]), opts["-logfile"]) #  # default to informational, stdout
+   #write("My ass value", (opts["-loglevel"]), "           Second ass value: ", (opts["-logfile"]))
+
+   Logger(14, opts["-logfile"]) #  # default to informational, stdout
 
    if \opts["-debug-kind"] then
       Logger.add_debug_kind(opts["-debug-kind"])
@@ -76,4 +80,5 @@ procedure main(args)
 
    ulsp_server := Server(sock, mode)
    ulsp_server.run()
+   #write("Server succesfully started!!")
 end

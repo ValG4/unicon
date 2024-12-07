@@ -2446,7 +2446,7 @@ end
 #   <[returns {0,1} new]>
 # </p>
 # Source: fxposix.ri
-procedure select(files[nargs])
+procedure select(files[nargs]) 
 end
 
 # <p>
